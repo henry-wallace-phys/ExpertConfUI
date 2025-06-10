@@ -1,0 +1,16 @@
+.vscode
+*__pycache__*
+*.pyc
+*.pyo*
+
+*egg*
+*.egg-info
+*.dist-info
+*.whl
+*.db
+*.sqlite3
+*.log
+*.coverage
+*.mypy_cache
+*.pytest_cache
+*.pyd
