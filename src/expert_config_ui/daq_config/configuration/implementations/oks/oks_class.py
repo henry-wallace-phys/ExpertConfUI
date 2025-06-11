@@ -10,9 +10,12 @@ from expert_config_ui.daq_config.configuration.interfaces.configuration_interfac
 )
 import logging
 
+
 # *****************************************************************************
-class OksKernelClassHandler(IClassObjectManager, IObjectModifier, IClassObjectLifecycle, OksKernelInteraction):
-# ******************************************************************************
+class OksKernelClassHandler(
+    IClassObjectManager, IObjectModifier, IClassObjectLifecycle, OksKernelInteraction
+):
+    # ******************************************************************************
     __KNOWN_PROPERTIES__ = ["description", "is_abstract", "file"]
 
     def get_obj(self, object_class: str) -> oks.OksClass:

@@ -1,8 +1,8 @@
 [project]
-name = "expert_conf_ui"
-version = "0.1.0"
-requires-python = ">=3.8"
-description = "Expert configuration UI for managing and visualizing expert configurations."
-readme = "README.md"
-maintainers = [{name = "Henry Wallace", email= "henry.wallace@rhul.ac.uk"}]
+    name = "expert_conf_ui"
+    version = "0.1.0"
+    requires-python = ">=3.8"
+    description = "Expert configuration UI for managing and visualizing expert configurations."
+    readme = "README.md"
+    maintainers = [{name = "Henry Wallace", email= "henry.wallace@rhul.ac.uk"}]
 

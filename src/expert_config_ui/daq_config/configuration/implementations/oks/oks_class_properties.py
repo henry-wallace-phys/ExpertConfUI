@@ -21,9 +21,12 @@ class OksClassProperties(Enum):
     METHOD = "method"
     RELATIONSHIP = "relationship"
 
+
 # *****************************************************************************
-class _OksKernelPropertyHandler(IObjectModifier, INamedObjectManager, INamedObjectLifecycle):
-# *****************************************************************************
+class _OksKernelPropertyHandler(
+    IObjectModifier, INamedObjectManager, INamedObjectLifecycle
+):
+    # *****************************************************************************
     """
     Class for managing the lifecycle of methods in the OKS configuration.
     """
@@ -31,7 +34,7 @@ class _OksKernelPropertyHandler(IObjectModifier, INamedObjectManager, INamedObje
     def __init__(self, property_type: OksClassProperties):
         self._property_type = property_type
         self.__KNOWN_PROPERTIES__ = []
-        
+
     def get_obj(self, obj: oks.OksClass, attr_name: str) -> Any:
         """
         Get the value of an attribute for a specific object in the current configuration.
@@ -40,8 +43,8 @@ class _OksKernelPropertyHandler(IObjectModifier, INamedObjectManager, INamedObje
         :return: Value of the specified attribute.
         """
         return (
-            getattr(obj, f"get_{self._property_type.value}")(attr_name)
-            if hasattr(obj, f"get_{self._property_type.value}")
+            getattr(obj, f"find_{self._property_type.value}")(attr_name)
+            if hasattr(obj, f"find_{self._property_type.value}")
             else None
         )
 
@@ -51,13 +54,12 @@ class _OksKernelPropertyHandler(IObjectModifier, INamedObjectManager, INamedObje
         :param obj: The object to retrieve attributes from.
         :return: List of all attributes of the specified type.
         """
-        return getattr(obj, f"all_{self._property_type.value}")()
-
+        return getattr(obj, f"all_{self._property_type.value}s")()
 
     def get_attr(self, obj: oks.OksClass, attr_name: str):
         return (
-            getattr(obj, f"get_{self._property_type.value}")(attr_name)
-            if hasattr(obj, f"get_{self._property_type.value}")
+            getattr(obj, f"get_{attr_name}")()
+            if hasattr(obj, f"get_{attr_name}")
             else None
         )
 
@@ -68,21 +70,13 @@ class _OksKernelPropertyHandler(IObjectModifier, INamedObjectManager, INamedObje
         :param attr_name: Name of the attribute to set.
         :param attr_value: Value to set for the attribute.
         """
+        
+        return (
+            getattr(obj, f"set_{attr_name}")(attr_value)
+            if hasattr(obj, f"set_{attr_name}")
+            else None
+        )
 
-        prop = self.get_attr(obj, attr_name)
-        if prop is None:
-            logging.warning(
-                f"Property '{attr_name}' does not exist in class '{obj.get_name()}'."
-            )
-            return None
-
-        if not hasattr(prop, f"set_{self._property_type.value}"):
-            logging.error(
-                f"Property '{attr_name}' does not support modification in class '{obj.get_name()}'."
-            )
-            return None
-
-        return getattr(prop, f"set_{self._property_type.value}")(attr_value)
 
     def add(self, obj: oks.OksClass, attr_name: str) -> None:
         """
@@ -122,9 +116,10 @@ class _OksKernelPropertyHandler(IObjectModifier, INamedObjectManager, INamedObje
             f"Cannot create property in {self.__class__.__name__}. Please define subclass."
         )
 
+
 # *****************************************************************************
 class OksKernelAttributeHandler(_OksKernelPropertyHandler):
-# *****************************************************************************
+    # *****************************************************************************
     """
     Handler for managing attributes in the OKS configuration.
     """
@@ -155,11 +150,11 @@ class OksKernelAttributeHandler(_OksKernelPropertyHandler):
 
 # *****************************************************************************
 class OksKernelRelationshipHandler(_OksKernelPropertyHandler):
-# *****************************************************************************
+    # *****************************************************************************
     """
     Handler for managing relationships in the OKS configuration.
     """
-    
+
     def __init__(self):
         super().__init__(OksClassProperties.RELATIONSHIP)
         self.__KNOWN_PROPERTIES__ = [
@@ -207,7 +202,7 @@ class OksKernelRelationshipHandler(_OksKernelPropertyHandler):
 
 # *****************************************************************************
 class OksKernelMethodHandler(_OksKernelPropertyHandler):
-# *****************************************************************************
+    # *****************************************************************************
     def __init__(self):
         super().__init__(OksClassProperties.METHOD)
         self.__KNOWN_PROPERTIES__ = [
@@ -252,8 +247,6 @@ class OksKernelMethodHandler(_OksKernelPropertyHandler):
         else:
             super().set_attr(obj, attr_name, attr_value)
 
-
-
     def create(
         self, obj: oks.OksClass, attr_name: str, attributes: Dict[str, Any]
     ) -> None:
@@ -264,4 +257,3 @@ class OksKernelMethodHandler(_OksKernelPropertyHandler):
         :param attributes: Attributes of the method to create. (currently only name)
         """
         oks.OksMethod(attr_name, obj)
-

@@ -5,7 +5,7 @@ from expert_config_ui.daq_config.configuration.interfaces.configuration_interfac
     INamedObjectManager,
     ConfigurationInteractionBase,
     IObjectModifier,
-    ConfigType
+    ConfigType,
 )
 import logging
 from typing import Optional, List, Any, Dict
@@ -36,6 +36,21 @@ class ConffwkConfiguration(IConfiguration):
         self._configuration_name = configuration_name
         self._configuration = conffwk.Configuration(f"oksconflibs:{configuration_name}")
 
+    def close_configuration(self, partial_close: bool, file_names: Any = None) -> None:
+        """
+        Close the current configuration.
+        :param partial_close: Optional parameter to specify if the close is partial.
+        :param file_names: Optional file names to close.
+        """
+        if self._configuration is None:
+            raise ValueError("Configuration is not loaded.")
+
+        logging.info(f"Closing configuration: {self._configuration_name}")
+        if partial_close:
+            logging.warning("Partial close is not supported in ConffwkConfiguration.")
+
+        self._configuration.unload()
+
     def save_configuration(self, commit_message: str = "") -> None:
         """
         Save the current configuration to a file.
@@ -45,7 +60,12 @@ class ConffwkConfiguration(IConfiguration):
 
 
 # *****************************************************************************
-class ConffwkObjectHandler(IObjectModifier, INamedObjectManager, INamedObjectLifecycle, ConfigurationInteractionBase):
+class ConffwkObjectHandler(
+    IObjectModifier,
+    INamedObjectManager,
+    INamedObjectLifecycle,
+    ConfigurationInteractionBase,
+):
     # *****************************************************************************
     def __init__(self, configuration: IConfiguration):
         if not isinstance(configuration, ConffwkConfiguration):
@@ -53,7 +73,6 @@ class ConffwkObjectHandler(IObjectModifier, INamedObjectManager, INamedObjectLif
                 "Configuration must be an instance of ConffwkConfiguration."
             )
         super().__init__(ConfigType.DATA, configuration)
-
 
     def get_obj(self, object_class: str, object_name: str):
         """
@@ -89,7 +108,7 @@ class ConffwkObjectHandler(IObjectModifier, INamedObjectManager, INamedObjectLif
             else self._configuration.configuration.get_all_dals()
         )
 
-    def set_attr(self, obj: conffwk.DalBase, attr_name: str, attr_value: Any) -> None:
+    def set_attr(self, obj: conffwk.dal, attr_name: str, attr_value: Any) -> None:
         """
         Modify an attribute of an object in the current configuration.
         :param object_class: Class of the object to modify.
@@ -103,7 +122,7 @@ class ConffwkObjectHandler(IObjectModifier, INamedObjectManager, INamedObjectLif
         setattr(obj, attr_name, attr_value)
         self._configuration.configuration.update_dal(obj)
 
-    def get_attr(self, obj: conffwk.DalBase, attr_name: str) -> Optional[Any]:
+    def get_attr(self, obj: conffwk.dal, attr_name: str) -> Optional[Any]:
         """
         Get the value of an attribute for a specific object in the current configuration.
         :param object_class: Class of the object to retrieve.
@@ -113,7 +132,7 @@ class ConffwkObjectHandler(IObjectModifier, INamedObjectManager, INamedObjectLif
         """
         return getattr(obj, attr_name) if hasattr(obj, attr_name) else None
 
-    def delete(self, object: conffwk.DalBase) -> None:
+    def delete(self, object: conffwk.dal) -> None:
         """
         Delete an object from the current configuration.
         :param object: The object to delete.
@@ -121,7 +140,7 @@ class ConffwkObjectHandler(IObjectModifier, INamedObjectManager, INamedObjectLif
         self._configuration.configuration.destroy_dal(object)
         self._configuration.configuration.update_dal(object)
 
-    def add(self, object: conffwk.DalBase) -> None:
+    def add(self, object: conffwk.dal) -> None:
         """
         Add an object to the current configuration.
         :param object: The object to add to the configuration.
@@ -129,7 +148,7 @@ class ConffwkObjectHandler(IObjectModifier, INamedObjectManager, INamedObjectLif
         self._configuration.configuration.add_dal(object)
         self._configuration.configuration.update_dal(object)
 
-    def rename(self, obj: conffwk.DalBase, new_name: str) -> None:
+    def rename(self, obj: conffwk.dal, new_name: str) -> None:
         obj.rename(new_name)
         self._configuration.configuration.update_dal(obj)
 

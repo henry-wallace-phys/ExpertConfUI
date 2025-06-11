@@ -36,6 +36,14 @@ class IConfiguration(Protocol):
         """
         ...
 
+    def close_configuration(
+        self, partial_close: str, file_names: List[str] | str
+    ) -> None:
+        """
+        Close the current configuration.
+        """
+        ...
+
     @property
     def configuration(self) -> Optional[object]:
         """
@@ -70,7 +78,9 @@ class _IObjectManager(Protocol):
         """
         ...
 
-    def get_all_obj(self, object_class: Optional[str | List[str]] = None) -> List[object]:
+    def get_all_obj(
+        self, object_class: Optional[str | List[str]] = None
+    ) -> List[object]:
         """
         Get all objects in the current configuration.
         :param object_class: Optional class filter for the objects to retrieve.
@@ -87,7 +97,7 @@ class INamedObjectManager(_IObjectManager, Protocol):
     Abstract base class for managing objects in a configuration.
     """
 
-    def get_obj(self, object_class: str, object_name: str) -> object:
+    def get_obj(self, object_class: Any, object_name: str) -> object:
         """
         Get an object of the specified class and name.
         :param object_class: Class of the object to retrieve.
@@ -105,7 +115,7 @@ class IClassObjectManager(_IObjectManager, Protocol):
     Abstract base class for managing objects in a configuration.
     """
 
-    def get_obj(self, object_class: str) -> object:
+    def get_obj(self, object_class: Any) -> object:
         """
         Get an object of the specified class and name.
         :param object_class: Class of the object to retrieve.
@@ -196,7 +206,7 @@ class INamedObjectLifecycle(_IObjectLifecycle, Protocol):
 @runtime_checkable
 # *****************************************************************************
 class IClassObjectLifecycle(_IObjectLifecycle, Protocol):
-# *****************************************************************************
+    # *****************************************************************************
     def create(self, object_class: str, attributes: Dict[str, Any]) -> None:
         """
         Create a new object in the configuration.
@@ -206,9 +216,12 @@ class IClassObjectLifecycle(_IObjectLifecycle, Protocol):
         """
         ...
 
+
 """
 Base class for managing interactions with configurations in a DAQ system.
 """
+
+
 # *****************************************************************************
 class ConfigurationInteractionBase:
     # *****************************************************************************
@@ -224,14 +237,6 @@ class ConfigurationInteractionBase:
         :param configuration: Optional configuration object to use.
         """
         self._config_type = config_type
-
-        if not str(configuration.name).endswith(
-            f"{config_type.name.lower()}{self.__CONFIG_NAME_EXTENSION}"
-        ):
-            logging.exception(
-                f"Configuration name must end with '{config_type.name.lower()}{self.__CONFIG_NAME_EXTENSION}'"
-            )
-
         self._configuration = configuration
 
     @property
@@ -249,4 +254,3 @@ class ConfigurationInteractionBase:
         :return: The type of the configuration (data or schema).
         """
         return self._config_type
-
