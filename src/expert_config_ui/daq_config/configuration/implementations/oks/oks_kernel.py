@@ -9,7 +9,7 @@ from expert_config_ui.daq_config.configuration.interfaces.configuration_interfac
 
 
 # *****************************************************************************
-class OksKernelConfiguration(IConfiguration):
+class OksKernelConfiguration(IConfiguration[oks.OksKernel]):
     # *****************************************************************************
     """
     OksConfiguration : Class for managing configurations using the OKS framework.
@@ -23,7 +23,20 @@ class OksKernelConfiguration(IConfiguration):
     def __init__(self):
         super().__init__()
         # Use the OKS Kernel to manage configurations
-        self._configuration = oks.OksKernel()
+
+        # If we're debugging kernel is not silent, otherwise it is
+        logging.debug("Initializing OksKernelConfiguration")
+        
+        # Get log level
+        log_level = logging.getLogger().getEffectiveLevel()
+
+
+        # Silent if log level is DEBUG, otherwise not silent
+        silence_mode = log_level != logging.DEBUG
+        if(silence_mode):
+            logging.info("OksKernelConfiguration initialized in silent mode.")
+            
+        self._configuration = oks.OksKernel(silence_mode=silence_mode, verbose_mode=not silence_mode)
 
     def open_configuration(self, config_name: str) -> None:
         logging.info(config_name)

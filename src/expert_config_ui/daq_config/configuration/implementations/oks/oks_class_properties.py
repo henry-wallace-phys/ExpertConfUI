@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, TypeVar, Generic, List, Optional
 import oks
 import logging
 from expert_config_ui.daq_config.configuration.interfaces.configuration_interface import (
@@ -22,48 +22,33 @@ class OksClassProperties(Enum):
     RELATIONSHIP = "relationship"
 
 
+T = TypeVar("T")
 # *****************************************************************************
-class _OksKernelPropertyHandler(
-    IObjectModifier, INamedObjectManager, INamedObjectLifecycle
-):
+class OksClassPropertyModifier(IObjectModifier[T], Generic[T]):
     # *****************************************************************************
     """
-    Class for managing the lifecycle of methods in the OKS configuration.
+    Class for managing the methods in the OKS configuration.
     """
 
-    def __init__(self, property_type: OksClassProperties):
-        self._property_type = property_type
-        self.__KNOWN_PROPERTIES__ = []
+    def __init__(self, oks_object: Optional[T]):
+        self._instance: Optional[T] = oks_object
+        
+    @property
+    def instance(self) -> T | None:
+        """
+        Get the underlying OKS object.
+        :return: The underlying OKS object.
+        """
+        return self._instance
 
-    def get_obj(self, obj: oks.OksClass, attr_name: str) -> Any:
-        """
-        Get the value of an attribute for a specific object in the current configuration.
-        :param obj: The object to retrieve the attribute from.
-        :param attr_name: Name of the attribute to retrieve.
-        :return: Value of the specified attribute.
-        """
+    def get_attr(self, attr_name: str):
         return (
-            getattr(obj, f"find_{self._property_type.value}")(attr_name)
-            if hasattr(obj, f"find_{self._property_type.value}")
+            getattr(self._instance, f"get_{attr_name}")()
+            if hasattr(self._instance, f"get_{attr_name}")
             else None
         )
 
-    def get_all_obj(self, obj: oks.OksClass) -> list[Any]:
-        """
-        Get all attributes of a specific type for a given object.
-        :param obj: The object to retrieve attributes from.
-        :return: List of all attributes of the specified type.
-        """
-        return getattr(obj, f"all_{self._property_type.value}s")()
-
-    def get_attr(self, obj: oks.OksClass, attr_name: str):
-        return (
-            getattr(obj, f"get_{attr_name}")()
-            if hasattr(obj, f"get_{attr_name}")
-            else None
-        )
-
-    def set_attr(self, obj: oks.OksClass, attr_name: str, attr_value: Any) -> None:
+    def set_attr(self, attr_name: str, attr_value: Any) -> None:
         """
         Set an attribute of a class in the configuration.
         :param obj: The object to modify.
@@ -72,40 +57,73 @@ class _OksKernelPropertyHandler(
         """
         
         return (
-            getattr(obj, f"set_{attr_name}")(attr_value)
-            if hasattr(obj, f"set_{attr_name}")
+            getattr(self._instance, f"set_{attr_name}")(attr_value)
+            if hasattr(self._instance, f"set_{attr_name}")
             else None
         )
 
 
-    def add(self, obj: oks.OksClass, attr_name: str) -> None:
+# *****************************************************************************
+class _OksClassPropertyHandler(INamedObjectLifecycle[oks.OksClass], INamedObjectManager[oks.OksClass], Generic[T]):
+# *****************************************************************************
+    """Class for managing properties of classes in the OKS configuration.
+    """
+    def __init__(self, oks_class: oks.OksClass, property_type: OksClassProperties):
+        self._oks_class = oks_class
+        self._property_type = property_type
+        self.__KNOWN_PROPERTIES__ = []
+    
+    def get_obj(self, attr_name: str) -> OksClassPropertyModifier[T]:
+        """
+        Get the value of an attribute for a specific object in the current configuration.
+        :param obj: The object to retrieve the attribute from.
+        :param attr_name: Name of the attribute to retrieve.
+        :return: Value of the specified attribute.
+        """
+        return (
+            OksClassPropertyModifier[T](getattr(self._oks_class, f"find_{self._property_type.value}")(attr_name))
+            if hasattr(self._oks_class, f"find_{self._property_type.value}")
+            else OksClassPropertyModifier(None)
+        )
+
+    def get_all_obj(self) -> List[OksClassPropertyModifier[T]]:
+        """
+        Get all attributes of a specific type for a given object.
+        :param obj: The object to retrieve attributes from.
+        :return: List of all attributes of the specified type.
+        """
+        vals =  getattr(self._oks_class, f"all_{self._property_type.value}s")()
+        return [OksClassPropertyModifier[T](val) for val in vals] if vals else []
+
+
+    def add(self, attr: OksClassPropertyModifier[T]) -> None:
         """
         Add a property to a class in the configuration.
         :param obj: The object to modify.
         :param attr_name: Name of the property to add.
         """
-        obj.add(attr_name)
+        self._oks_class.add(attr.instance)
 
-    def delete(self, obj: oks.OksClass, attr_name: str) -> None:
+    def delete(self, attr: OksClassPropertyModifier[T]) -> None:
         """
         Delete a property from a class in the configuration.
         :param obj: The object to modify.
         :param attr_name: Name of the property to delete.
         """
-        obj.remove(attr_name)
+        self._oks_class.remove(attr)
 
-    def rename(self, obj: oks.OksClass, old_name: str, new_name: str) -> None:
+    def rename(self, old_name: str, new_name: str) -> None:
         """
         Rename a property in a class in the configuration.
         :param obj: The object to modify.
         :param old_name: The current name of the property.
         :param new_name: The new name for the property.
         """
-        getattr(obj, f"get_{self._property_type.value}")(old_name).set_name(new_name)
+        getattr(self._oks_class, f"get_{self._property_type.value}")(old_name).set_name(new_name)
 
     def create(
-        self, obj: oks.OksClass, attr_name: str, attributes: Dict[str, Any]
-    ) -> None:
+        self, attr_name: str, attributes: Dict[str, Any]
+    ) -> OksClassPropertyModifier[T]:
         """
         Create a new property in a class in the configuration.
         :param obj: The object to modify.
@@ -115,17 +133,18 @@ class _OksKernelPropertyHandler(
         raise NotImplementedError(
             f"Cannot create property in {self.__class__.__name__}. Please define subclass."
         )
+        
 
 
 # *****************************************************************************
-class OksKernelAttributeHandler(_OksKernelPropertyHandler):
+class OksAttributeHandler(_OksClassPropertyHandler[oks.OksAttribute]):
     # *****************************************************************************
     """
     Handler for managing attributes in the OKS configuration.
     """
 
-    def __init__(self):
-        super().__init__(OksClassProperties.ATTRIBUTE)
+    def __init__(self, oks_class: oks.OksClass):
+        super().__init__(oks_class, OksClassProperties.ATTRIBUTE)
         self.__KNOWN_PROPERTIES__ = [
             "name",
             "description",
@@ -137,26 +156,25 @@ class OksKernelAttributeHandler(_OksKernelPropertyHandler):
         ]
 
     def create(
-        self, obj: oks.OksClass, attr_name: str, attributes: Dict[str, Any]
-    ) -> None:
+        self, attr_name: str, attributes: Dict[str, Any]
+    ) -> OksClassPropertyModifier[oks.OksAttribute]:
         """
         Create a new attribute in a class in the configuration.
         :param obj: The object to modify.
         :param attr_name: Name of the attribute to create.
         :param attributes: Attributes of the attribute to create. (currently only name)
         """
-        oks.OksAttribute(attr_name, obj)
-
+        return OksClassPropertyModifier(oks.OksAttribute(attr_name, self._oks_class))
 
 # *****************************************************************************
-class OksKernelRelationshipHandler(_OksKernelPropertyHandler):
+class OksRelationshipHandler(_OksClassPropertyHandler[oks.OksRelationship]):
     # *****************************************************************************
     """
     Handler for managing relationships in the OKS configuration.
     """
 
-    def __init__(self):
-        super().__init__(OksClassProperties.RELATIONSHIP)
+    def __init__(self, oks_class: oks.OksClass):
+        super().__init__(oks_class, OksClassProperties.ATTRIBUTE)
         self.__KNOWN_PROPERTIES__ = [
             "name",
             "description",
@@ -169,8 +187,8 @@ class OksKernelRelationshipHandler(_OksKernelPropertyHandler):
         ]
 
     def create(
-        self, obj: oks.OksClass, attr_name: str, attributes: Dict[str, Any]
-    ) -> None:
+        self, attr_name: str, attributes: Dict[str, Any]
+    ) -> OksClassPropertyModifier[oks.OksRelationship]:
         """
         Create a new relationship in a class in the configuration.
         :param obj: The object to modify.
@@ -186,7 +204,7 @@ class OksKernelRelationshipHandler(_OksKernelPropertyHandler):
         description = attributes.get("description", "")
         parent = attributes.get("parent", None)
 
-        oks.OksRelationship(
+        rel = oks.OksRelationship(
             attr_name,
             type,
             low_cc,
@@ -196,23 +214,27 @@ class OksKernelRelationshipHandler(_OksKernelPropertyHandler):
             is_dependent,
             description,
             parent,
-            obj,
+            self._oks_class,
         )
+        return OksClassPropertyModifier(rel)
 
 
-# *****************************************************************************
-class OksKernelMethodHandler(_OksKernelPropertyHandler):
-    # *****************************************************************************
-    def __init__(self):
-        super().__init__(OksClassProperties.METHOD)
-        self.__KNOWN_PROPERTIES__ = [
-            "name",
-            "description",
-            "implementation",
-        ]
+#******************************************************************************
+class OksMethodPropertyHandler(OksClassPropertyModifier[oks.OksMethod]):
+    """_summary_
+    Specialisation of OksClassPropertyHandler for handling methods in OKS.
+    """
+    def __init__(self, oks_method: oks.OksMethod):
+        """
+        Initialize the OksMethodPropertyHandler with an OksMethod instance.
+        :param oks_method: The OksMethod instance to handle.
+        """
+        if not isinstance(oks_method, oks.OksMethod):
+            raise TypeError("Expected an instance of oks.OksMethod")
+        super().__init__(oks_method)
 
     def __set_implementation(
-        self, obj: oks.OksClass, attr_name: str, attr_value: Any
+        self, attr_name: str, attr_value: Any
     ) -> None:
         """
         Set the implementation of a method in the OKS class. Requires annoyingly specific treatment.
@@ -228,11 +250,11 @@ class OksKernelMethodHandler(_OksKernelPropertyHandler):
         # For remmoving
         remove = attr_value.get("remove", False)
 
-        prop = self.get_attr(obj, attr_name)
+        prop = self.get_attr(attr_name)
 
         if prop is None:
             logging.warning(
-                f"Method '{attr_name}' does not exist in class '{obj.get_name()}'."
+                f"Method '{attr_name}' does not exist in class '{self._obj.get_name()}'."
             )
             return None
 
@@ -241,19 +263,32 @@ class OksKernelMethodHandler(_OksKernelPropertyHandler):
         else:
             prop.add_implementation(lanuage, prototype, body)
 
-    def set_attr(self, obj: oks.OksClass, attr_name: str, attr_value: Any) -> None:
+    def set_attr(self, attr_name: str, attr_value: Any) -> None:
         if attr_name == "implementation":
-            self.__set_implementation(obj, attr_name, attr_value)
+            self.__set_implementation(attr_name, attr_value)
         else:
-            super().set_attr(obj, attr_name, attr_value)
+            super().set_attr(attr_name, attr_value)
+    
+
+# *****************************************************************************
+class OksMethodHandler(_OksClassPropertyHandler[oks.OksMethod]):
+    # *****************************************************************************
+    def __init__(self, oks_class: oks.OksClass):
+        super().__init__(oks_class, OksClassProperties.METHOD)
+        self.__KNOWN_PROPERTIES__ = [
+            "name",
+            "description",
+            "implementation",
+        ]
 
     def create(
-        self, obj: oks.OksClass, attr_name: str, attributes: Dict[str, Any]
-    ) -> None:
+        self, attr_name: str, attributes: Dict[str, Any]
+    ) -> OksMethodPropertyHandler:
         """
         Create a new method in a class in the configuration.
         :param obj: The object to modify.
         :param attr_name: Name of the method to create.
         :param attributes: Attributes of the method to create. (currently only name)
         """
-        oks.OksMethod(attr_name, obj)
+        m = oks.OksMethod(attr_name, self._oks_class)
+        return OksMethodPropertyHandler(m)

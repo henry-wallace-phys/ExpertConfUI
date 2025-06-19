@@ -2,25 +2,29 @@
 A set of classses that define the interface for managing configurations in a DAQ system.
 """
 
-from typing import Optional, List, Protocol, Any, runtime_checkable, Dict
+from typing import Optional, List, Protocol, Any, runtime_checkable, Dict, Generic, TypeVar, Type
 from enum import Enum
-import logging
 
 
+# *****************************************************************************
 class ConfigType(Enum):
     DATA = "data"
     SCHEMA = "schema"
     OTHER = "other"
 
+read_type = TypeVar('read_type', covariant=True)
+contra_type = TypeVar('contra_type', contravariant=True)
+write_type = TypeVar('write_type')
+# *****************************************************************************
 
 @runtime_checkable
 # *****************************************************************************
-class IConfiguration(Protocol):
+class IConfiguration(Protocol, Generic[write_type]):
     # *****************************************************************************
     """
     Abstract base class for managing configurations in a DAQ system.
     """
-    _configuration: Optional[object] = None
+    _configuration: Optional[write_type] = None
     _configuration_name: Optional[str] = None
 
     def open_configuration(self, config: Any) -> None:
@@ -45,12 +49,20 @@ class IConfiguration(Protocol):
         ...
 
     @property
-    def configuration(self) -> Optional[object]:
+    def configuration(self) -> Optional[write_type]:
         """
         Get the current configuration.
         :return: The current configuration object.
         """
         return self._configuration
+
+    @configuration.setter
+    def configuration(self, value: Optional[write_type]) -> None:
+        """
+        Set the current configuration.
+        :param value: The configuration object to set.
+        """
+        self._configuration = value
 
     @property
     def name(self) -> Optional[str]:
@@ -60,16 +72,15 @@ class IConfiguration(Protocol):
         """
         return self._configuration_name
 
-
 @runtime_checkable
 # *****************************************************************************
-class _IObjectManager(Protocol):
+class _IObjectManager(Protocol, Generic[write_type]):
     # *****************************************************************************
     """
     Abstract base class for managing objects in a configuration.
     """
 
-    def get_obj(*args, **kwargs) -> object:
+    def get_obj(*args, **kwargs) -> write_type:
         """
         Get an object of the specified class and name.
         :param object_class: Class of the object to retrieve.
@@ -80,7 +91,7 @@ class _IObjectManager(Protocol):
 
     def get_all_obj(
         self, object_class: Optional[str | List[str]] = None
-    ) -> List[object]:
+    ) -> List[write_type]:
         """
         Get all objects in the current configuration.
         :param object_class: Optional class filter for the objects to retrieve.
@@ -91,13 +102,13 @@ class _IObjectManager(Protocol):
 
 @runtime_checkable
 # *****************************************************************************
-class INamedObjectManager(_IObjectManager, Protocol):
+class INamedObjectManager(_IObjectManager[write_type], Protocol, Generic[write_type]):
     # *****************************************************************************
     """
     Abstract base class for managing objects in a configuration.
     """
 
-    def get_obj(self, object_class: Any, object_name: str) -> object:
+    def get_obj(self, object_class: Any, object_name: str) -> write_type:
         """
         Get an object of the specified class and name.
         :param object_class: Class of the object to retrieve.
@@ -109,13 +120,13 @@ class INamedObjectManager(_IObjectManager, Protocol):
 
 @runtime_checkable
 # *****************************************************************************
-class IClassObjectManager(_IObjectManager, Protocol):
+class IClassObjectManager(_IObjectManager[write_type], Protocol, Generic[write_type]):
     # *****************************************************************************
     """
     Abstract base class for managing objects in a configuration.
     """
 
-    def get_obj(self, object_class: Any) -> object:
+    def get_obj(self, object_class: Any) -> write_type:
         """
         Get an object of the specified class and name.
         :param object_class: Class of the object to retrieve.
@@ -127,9 +138,11 @@ class IClassObjectManager(_IObjectManager, Protocol):
 
 @runtime_checkable
 # *****************************************************************************
-class IObjectModifier(Protocol):
+class IObjectModifier(Protocol, Generic[read_type]):
     # *****************************************************************************
-    def set_attr(self, obj: Any, attribute_name: str, attribute_value: Any) -> None:
+    _instance: read_type
+    
+    def set_attr(self, attribute_name: str, attribute_value: Any) -> None:
         """
         Set the value of an attribute of an object in the configuration.
         :param class_name: Class of the object to modify.
@@ -139,7 +152,7 @@ class IObjectModifier(Protocol):
         """
         ...
 
-    def get_attr(self, obj: Any, attribute_name: str) -> Any:
+    def get_attr(self, attribute_name: str) -> read_type:
         """
         Get an attribute of an object in the configuration.
         :param class_name: Class of the object.
@@ -152,20 +165,20 @@ class IObjectModifier(Protocol):
 
 @runtime_checkable
 # *****************************************************************************
-class _IObjectLifecycle(Protocol):
+class _IObjectLifecycle(Protocol, Generic[write_type]):
     # *****************************************************************************
     """
     Abstract base class for add/renaming/deleting objects in a configuration.
     """
 
-    def add(self, obj: object) -> None:
+    def add(self, obj: write_type) -> None:
         """
         Add an object to the current configuration.
         :param object: The object to add to the configuration.
         """
         ...
 
-    def delete(self, obj: object) -> None:
+    def delete(self, obj: write_type) -> None:
         """
         Remove an object from the configuration.
         :param object_class: Class of the object to remove.
@@ -173,7 +186,7 @@ class _IObjectLifecycle(Protocol):
         """
         ...
 
-    def rename(self, obj: object, new_name: str) -> None:
+    def rename(self, obj: write_type, new_name: str) -> None:
         """
         Add an object to the current configuration by name.
         :param class_name: Class
@@ -183,17 +196,22 @@ class _IObjectLifecycle(Protocol):
         """
         ...
 
-    def create(self, *args, **kwargs):
-        raise NotImplementedError("This method should be implemented in subclasses.")
+    def create(self, *args, **kwargs)->write_type:
+        '''
+        Create a new object in the configuration.
+        :param object_class: Class of the object to create.
+        :param object_name: Name of the object to create.
+        '''
+        ...
 
 
 @runtime_checkable
 # *****************************************************************************
-class INamedObjectLifecycle(_IObjectLifecycle, Protocol):
+class INamedObjectLifecycle(_IObjectLifecycle[write_type], Protocol, Generic[write_type]):
     # *****************************************************************************
     def create(
         self, object_class: str, object_name: "str", attributes: Dict[str, Any]
-    ) -> None:
+    ) -> write_type:
         """
         Create a new object in the configuration.
         :param object_class: Class of the object to create.
@@ -205,9 +223,9 @@ class INamedObjectLifecycle(_IObjectLifecycle, Protocol):
 
 @runtime_checkable
 # *****************************************************************************
-class IClassObjectLifecycle(_IObjectLifecycle, Protocol):
+class IClassObjectLifecycle(_IObjectLifecycle[write_type], Protocol, Generic[write_type]):
     # *****************************************************************************
-    def create(self, object_class: str, attributes: Dict[str, Any]) -> None:
+    def create(self, object_class: str, attributes: Dict[str, Any]) -> write_type:
         """
         Create a new object in the configuration.
         :param object_class: Class of the object to create.
@@ -220,8 +238,6 @@ class IClassObjectLifecycle(_IObjectLifecycle, Protocol):
 """
 Base class for managing interactions with configurations in a DAQ system.
 """
-
-
 # *****************************************************************************
 class ConfigurationInteractionBase:
     # *****************************************************************************
@@ -246,6 +262,14 @@ class ConfigurationInteractionBase:
         :return: The current configuration object.
         """
         return self._configuration
+
+    @configuration.setter
+    def configuration(self, value: Optional[IConfiguration]) -> None:
+        """
+        Set the current configuration.
+        :param value: The configuration object to set.
+        """
+        self._configuration = value
 
     @property
     def config_type(self) -> ConfigType:

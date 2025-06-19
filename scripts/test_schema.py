@@ -1,33 +1,30 @@
 from expert_config_ui.daq_config.configuration.implementations.oks.oks_backend import OksKernelBackend
-from expert_config_ui.daq_config.configuration.implementations.oks.oks_class_properties import OksKernelAttributeHandler
 from expert_config_ui.daq_config.configuration.implementations.conffwk.conffwk_backend import ConffwkBackend
 
-def test_schema(schema_file: str) -> None:
+import logging
+
+def test_schema(schema_file: str, data_file: str) -> None:
     """
     Test function to validate the schema of the configuration interfaces.
     """
-    oks_backend = OksKernelBackend(config_path=None)
-    # conffwk_backend_instance = ConffwkBackend(config_path=None)
+    oks_backend = OksKernelBackend(schema_file)
+    print(oks_backend.handler.get_obj("DataHandlerModule").attributes.get_obj("source_id").get_attr("name"))
 
-    oks_backend.open(schema_file)
-    fake_hsi = oks_backend.get_handler("class_obj").get_obj("DFOConf")
-    rels_handler: OksKernelAttributeHandler = oks_backend.get_handler("attribute")
-    
-    rels = rels_handler.get_obj(fake_hsi, "general_queue_timeout_ms")
-    
-    print(rels_handler.get_attr(rels, "name"))
-    rels_handler.set_attr(rels, "name", "silly_name")
-    print(rels_handler.get_attr(rels, "name"))
+    conffwk_backend = ConffwkBackend(data_file)
+    print(conffwk_backend.handler.get_obj("Session", "np02-session").get_attr("disabled"))
 
-    
-    
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) != 2:
-        print("Usage: python test_schema.py <schema_file>")
-        sys.exit(1)
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    # import sys
+    # if len(sys.argv) != 3:
+    #     print("Usage: python test_schema.py <schema_file> <database>")
+    #     sys.exit(1)
 
-    SCHEMA = sys.argv[1]
+    # SCHEMA = sys.argv[1]
+    # DATABASE = sys.argv[2]
 
-    test_schema(SCHEMA)
+    SCHEMA = "schema/appmodel/application.schema.xml"
+    DATABASE = "/home/hwallace/scratch/dune_software/daq/daq_work_areas/NFD_DEV_250514_A9/np02-runs/sessions/np02-session.data.xml"
+
+    test_schema(SCHEMA, DATABASE)
     print("Schema test completed successfully.")

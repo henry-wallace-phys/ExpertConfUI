@@ -1,26 +1,14 @@
-from typing import Any, TypedDict, Union
-from expert_config_ui.daq_config.configuration.interfaces.configuration_interface import IConfiguration, IClassObjectManager, INamedObjectLifecycle, IObjectModifier, INamedObjectManager, IClassObjectLifecycle
+from typing import Any, TypeVar, Union, Generic
+from expert_config_ui.daq_config.configuration.interfaces.configuration_interface import (IConfiguration,
+                                                                                          IObjectModifier,
+                                                                                          _IObjectLifecycle,
+                                                                                          _IObjectManager)
+
+
+T = TypeVar('T')
 
 # *****************************************************************************
-
-# Define a union type for all possible handlers
-HandlerType = Union[
-    IClassObjectManager,
-    IObjectModifier,
-    IClassObjectLifecycle,
-    INamedObjectManager,
-    INamedObjectLifecycle
-]
-
-
-"""
-Generic adaptor interface for configuration management in a DAQ system. Aim is to connect interfaces in configuration_interface.py
-"""
-class IPropertyHandler(TypedDict):
-    ...
-
-# *****************************************************************************
-class IConfigBackend:
+class IConfigBackend(Generic[T]):
     # *****************************************************************************
     """
     Interface for configuration adapters in a DAQ system.
@@ -31,26 +19,16 @@ class IConfigBackend:
         """
         Initialize the configuration backend with an empty property handlers dictionary.
         """
-        self._PROPERTY_HANDLERS: IPropertyHandler
+        self._PROPERTY_HANDLER: Any
         self._CONFIGURATION: IConfiguration
 
-    def get_handler(self, handler_type: str) -> HandlerType:
-        """
-        Get a handler for a specific type of configuration management.
-        :param handler_type: Type of the handler to retrieve.
-        :return: Handler instance for the specified type.
-        """
-        if handler_type.lower() not in self._PROPERTY_HANDLERS.keys():
-            raise ValueError(f"Handler type '{handler_type}' is not registered.")
-        return self._PROPERTY_HANDLERS[handler_type]
-
     @property
-    def property_handlers(self) -> IPropertyHandler:
+    def handler(self) -> T:
         """
         Get the dictionary of registered property handlers.
         :return: Dictionary of property handlers.
         """
-        return self._PROPERTY_HANDLERS
+        return self._PROPERTY_HANDLER
 
     def get_configuration(self) -> IConfiguration:
         """
@@ -80,9 +58,3 @@ class IConfigBackend:
         :param commit_message: Commit message for the save operation.
         """
         self._CONFIGURATION.save_configuration(commit_message)
-
-    def register_handler(self, handler_type: str, handler: Any) -> None:
-        """Register a new handler type"""
-        if handler_type in self._PROPERTY_HANDLERS:
-            raise ValueError(f"Handler type '{handler_type}' already registered")
-        self._PROPERTY_HANDLERS[handler_type] = handler
