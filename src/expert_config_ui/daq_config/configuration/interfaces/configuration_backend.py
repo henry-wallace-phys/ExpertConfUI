@@ -14,14 +14,9 @@ class IConfigBackend(Generic[T]):
     Interface for configuration adapters in a DAQ system.
     Provides interfaces for managing configurations, objects, and their properties.
     """
-
-    def __init__(self) -> None:
-        """
-        Initialize the configuration backend with an empty property handlers dictionary.
-        """
-        self._PROPERTY_HANDLER: Any
-        self._CONFIGURATION: IConfiguration
-
+    _PROPERTY_HANDLER: T
+    _CONFIGURATION: IConfiguration
+    
     @property
     def handler(self) -> T:
         """

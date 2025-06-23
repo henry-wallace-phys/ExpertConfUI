@@ -32,7 +32,7 @@ class OksClassPropertyModifier(IObjectModifier[T], Generic[T]):
 
     def __init__(self, oks_object: Optional[T]):
         self._instance: Optional[T] = oks_object
-        
+
     @property
     def instance(self) -> T | None:
         """
@@ -62,6 +62,11 @@ class OksClassPropertyModifier(IObjectModifier[T], Generic[T]):
             else None
         )
 
+    def __eq__(self, value: object) -> bool:
+        if isinstance(value, OksClassPropertyModifier):
+            return self._instance == value.instance
+        
+        return False
 
 # *****************************************************************************
 class _OksClassPropertyHandler(INamedObjectLifecycle[oks.OksClass], INamedObjectManager[oks.OksClass], Generic[T]):
@@ -94,7 +99,6 @@ class _OksClassPropertyHandler(INamedObjectLifecycle[oks.OksClass], INamedObject
         """
         vals =  getattr(self._oks_class, f"all_{self._property_type.value}s")()
         return [OksClassPropertyModifier[T](val) for val in vals] if vals else []
-
 
     def add(self, attr: OksClassPropertyModifier[T]) -> None:
         """
@@ -254,7 +258,7 @@ class OksMethodPropertyHandler(OksClassPropertyModifier[oks.OksMethod]):
 
         if prop is None:
             logging.warning(
-                f"Method '{attr_name}' does not exist in class '{self._obj.get_name()}'."
+                f"Method '{attr_name}' does not exist in class '{self._obj.name()}'."
             )
             return None
 

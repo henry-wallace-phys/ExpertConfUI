@@ -2,6 +2,9 @@ from typing import Optional, Protocol, runtime_checkable, List, Any, Callable
 from expert_config_ui.daq_config.configuration.interfaces.configuration_backend import IConfigBackend
 import logging
 import warnings
+from rich.tree import Tree
+import networkx as nx
+from matplotlib import pyplot as plt
 
 class NotABranchError(Exception):
     """
@@ -34,7 +37,7 @@ class ConfigTreeBranch:
     Represents a node in the tree structure that can contain data and child branches.
     """
     
-    def __init__(self, name: str,  id: str, stored_data: Any = None) -> None:
+    def __init__(self, name: str, id: str, stored_data: Any = None) -> None:
         """
         Initialize a new branch with a name, optional stored data, and a unique identifier.
         Args:
@@ -43,10 +46,19 @@ class ConfigTreeBranch:
             id: Unique identifier for the branch.
         """
         self.name: str = name
-        self.stored_data: Any = stored_data
+        self._stored_data: Any = stored_data
         self.id: str = id
         self._children: List[ConfigTreeBranch] = []  # Type: List[ConfigTreeBranch]
         self._parents: List[ConfigTreeBranch] = []  # Type: List[ConfigTreeBranch]
+
+    @property
+    def stored_data(self) -> Any:
+        """
+        Get the stored data in this branch.
+        Returns:
+            The stored data (can be None).
+        """
+        return self._stored_data
 
     def add_child(self, child: 'ConfigTreeBranch') -> None:
         """
@@ -59,7 +71,7 @@ class ConfigTreeBranch:
         if not isinstance(child, ConfigTreeBranch):
             raise NotABranchError("Child must be an instance of ConfigTreeBranch")
         if child in self._children:
-            continue
+            return
         self._children.append(child)
         child._add_parent(self)
 
@@ -71,6 +83,11 @@ class ConfigTreeBranch:
         """
         if not isinstance(child, ConfigTreeBranch):
             raise NotABranchError("Child must be an instance of ConfigTreeBranch")
+        
+        if child in self._children:
+            return
+        
+        
         self._children.append(child)
 
     def remove_child(self, child: 'ConfigTreeBranch') -> None:
@@ -111,7 +128,7 @@ class ConfigTreeBranch:
         if not isinstance(parent, ConfigTreeBranch):
             raise NotABranchError("Parent must be an instance of ConfigTreeBranch")
         if parent in self._parents:
-            logging.debug(f"Parent doesn't exist in this branch {self.name}:{self.id}")
+            return
         parent.add_child(self)
         self._parents.append(parent)
         
@@ -122,6 +139,9 @@ class ConfigTreeBranch:
         """
         if not isinstance(parent, ConfigTreeBranch):
             raise NotABranchError("Parent must be an instance of ConfigTreeBranch")
+        if parent in self._parents:
+            return    
+    
         self._parents.append(parent)
         parent._add_child(self)
     
@@ -169,7 +189,7 @@ class ConfigTree:
     _root_branch: Optional[ConfigTreeBranch]
     _branches: List[ConfigTreeBranch]  # All branches in the tree for easy access
     
-    def __init__(self, backend: IConfigBackend, root_branch: Optional[ConfigTreeBranch]) -> None:
+    def __init__(self, backend: IConfigBackend, root_branch: ConfigTreeBranch) -> None:
         """
         Initialize the configuration tree with a backend.
         Args:
@@ -182,7 +202,7 @@ class ConfigTree:
     def get_root(self) -> Optional[ConfigTreeBranch]:
         """Get the root branch of the tree (never None)."""
         return self._root_branch
-        
+    
     def add_branch(self, parent: Optional[ConfigTreeBranch], branch: ConfigTreeBranch) -> None:
         """
         Add a branch to the tree under specified parent.
@@ -202,12 +222,10 @@ class ConfigTree:
                 )
             self._root_branch = branch
             self._branches = []
+        else:
+            branch.add_parent(parent)  # Set parent-child relationship
         
         if self.get_branch_by_name_id(branch.name, branch.id):
-            warnings.warn(
-                f"Branch with name '{branch.name}' and ID '{branch.id}' already exists.",
-                BranchExistsWarning
-            )
             return
         
         self._branches.append(branch)
@@ -269,14 +287,13 @@ class ConfigTree:
             # Only expect one branch with unique ID
             return branches[0]
         
-        warnings.warn(f"Branch with name '{name}' and ID '{branch_id}' not found.", BranchExistsWarning)
         return None
         
     def get_all_branches(self) -> List[ConfigTreeBranch]:
         """Get all branches in the tree."""
         return self._branches.copy()
     
-class TreeToDict:
+class TreePrinter:
     """
     Convert the configuration tree to a dictionary representation.
     Args:
@@ -284,6 +301,15 @@ class TreeToDict:
     Returns:
         Dictionary representation of the tree.
     """
+    def __init__(self, conf_tree: ConfigTree) -> None:
+        """
+        Initialize the TreePrinter with a configuration tree.
+        
+        Args:
+            conf_tree: The configuration tree to print.
+        """
+        self._conf_tree = conf_tree
+    
     def branch_to_dict(self, branch: ConfigTreeBranch) -> dict:
         return {
             "name": branch.name,
@@ -293,7 +319,7 @@ class TreeToDict:
             "parents": [parent.id for parent in branch.get_parents()]
         }
     
-    def tree_to_dict(self, tree: ConfigTree) -> dict:
+    def tree_to_dict(self) -> dict:
         """
         Convert the entire configuration tree to a nested dictionary.
 
@@ -302,12 +328,81 @@ class TreeToDict:
         Returns:
             Dictionary representation of the tree.
         """
-        if tree.get_root() is None:
+        if self._conf_tree.get_root() is None:
             return {}
         
         return {
-            "root": self.branch_to_dict(tree.get_root()),
-            "branches": [self.branch_to_dict(branch) for branch in tree.get_all_branches()]
+            "root": self.branch_to_dict(self._conf_tree.get_root()),
+            "branches": [self.branch_to_dict(branch) for branch in self._conf_tree.get_all_branches()]
         }
         
+    def rich_tree(self, conf_tree: ConfigTree) -> Tree:
+        """
+        Print the configuration tree in a human-readable format.
         
+        Args:
+            tree: The configuration tree to print.
+        """
+        if self._conf_tree.get_root() is None:
+            print("The configuration tree is empty.")
+            return Tree("Empty Tree")
+        
+        rich_tree = Tree(f"Schema Tree")
+        self._add_branch_to_rich_tree(self._conf_tree.get_root(), rich_tree)
+            
+        return rich_tree
+        
+    def _add_branch_to_rich_tree(self, branch: ConfigTreeBranch, parent_node: Tree) -> None:
+        """
+        Recursively add branches to the rich tree.
+        
+        Args:
+            branch: The branch to add.
+            parent_node: The parent node in the rich tree.
+        """
+        node = parent_node.add(f"{branch.name} ({branch.id})")
+        for child in branch.get_children():
+            self._add_branch_to_rich_tree(child, node)
+            
+    def networkx_graph(self) -> nx.DiGraph:
+        """
+        Convert the configuration tree to a NetworkX directed graph.
+        
+        Args:
+            conf_tree: The configuration tree to convert.
+        Returns:
+            A NetworkX directed graph representing the tree structure.
+        """
+        graph = nx.DiGraph()
+        for branch in self._conf_tree.get_all_branches():
+            graph.add_node(branch.name, stored_data=branch.stored_data)
+        
+        for branch in self._conf_tree.get_all_branches():
+            for child in branch.get_children():
+                graph.add_edge(branch.name, child.name)
+                
+        return graph
+    
+    def draw_networkx_graph(self, file_name: str = "my_graph.png") -> None:
+        """
+        Draw the configuration tree as a graph using NetworkX and Matplotlib.
+        
+        Args:
+            conf_tree: The configuration tree to draw.
+            file_name: The name of the file to save the graph image.
+        """
+        graph = self.networkx_graph()
+        
+        fig = plt.figure(figsize=(10, 10))
+        ax = fig.add_subplot(111)
+        nx.draw_spring(
+            graph,
+            with_labels=True,
+            node_size=1000,
+            node_color='skyblue',
+            font_size=8,
+            font_color='black',
+            font_weight='bold',
+            ax=ax,
+        )
+        fig.savefig(file_name)

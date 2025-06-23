@@ -1,0 +1,11 @@
+.scrollable_grid{
+    layout: grid;
+    grid-columns: 25%;
+    grid-gutter: 1 3;
+}
+
+.backend_button{
+    width: 100%;
+    align: center middle;
+    margin: 1 10;
+}

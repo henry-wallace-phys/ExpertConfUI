@@ -14,7 +14,6 @@ class ConffwkBackend(IConfigBackend[ConffwkObjectHandler]):
     Backend for managing configurations using the Conffwk framework.
     This class initializes the Conffwk configuration and provides methods to interact with it.
     """
-
     def __init__(self, config_path: Optional[str] = None) -> None:
         super().__init__()
         self._CONFIGURATION = ConffwkConfiguration()

@@ -1,6 +1,10 @@
 from expert_config_ui.daq_config.configuration.implementations.oks.oks_backend import OksKernelBackend
 from expert_config_ui.daq_config.configuration.implementations.conffwk.conffwk_backend import ConffwkBackend
-
+from expert_config_ui.daq_config.data_structures.oks.oks_schema_tree import OksSchemaTree
+from expert_config_ui.daq_config.configuration.interfaces.tree_interface import TreePrinter
+import rich
+import networkx as nx
+from matplotlib import pyplot as plt
 import logging
 
 def test_schema(schema_file: str, data_file: str) -> None:
@@ -8,10 +12,13 @@ def test_schema(schema_file: str, data_file: str) -> None:
     Test function to validate the schema of the configuration interfaces.
     """
     oks_backend = OksKernelBackend(schema_file)
-    print(oks_backend.handler.get_obj("DataHandlerModule").attributes.get_obj("source_id").get_attr("name"))
+    session_schema_obj = oks_backend.handler.get_obj("Session")
 
     conffwk_backend = ConffwkBackend(data_file)
-    print(conffwk_backend.handler.get_obj("Session", "np02-session").get_attr("disabled"))
+    conffwk_backend.open(data_file)
+    session_instance = conffwk_backend.handler.get_obj("Session", "np02-session")
+    
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

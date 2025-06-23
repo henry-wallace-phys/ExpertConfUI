@@ -51,19 +51,38 @@ class ConffwkConfiguration(IConfiguration[conffwk.Configuration]):
 
     def save_configuration(self, commit_message: str = "") -> None:
         """
-        Save the current configuration to a file.
+        Save the current configuration to a file. 
         :param commit_message: Commit message for the save operation.
         """
         self.configuration.commit(commit_message)
 
+
 class ConffwkObjectModifier(IObjectModifier[conffwk.dal.DalBase]):
     def __init__(self, dal_obj: conffwk.dal.DalBase) -> None:
+        if not isinstance(dal_obj, conffwk.dal.DalBase):
+            raise TypeError("dal_obj must be an instance of conffwk.dal.DalBase")
+        
         self._instance = dal_obj
         self.configuration = getattr(dal_obj, "configuration", None)
         
     @property
     def instance(self) -> conffwk.dal.DalBase:
         return self._instance    
+
+    @property
+    def name(self) -> str:
+        """
+        Get the name of the DAL object.
+        :return: Name of the DAL object.
+        """
+        return str(self.get_attr("id"))
+    
+    @property
+    def attributes(self) -> Dict[str, Any]:
+        return self.configuration.attributes(self.get_attr("className"))()
+
+    def relations(self) -> Dict[str, Any]:
+        return self.configuration.relations(self.get_attr("className"))()
     
     def check_is_dal(self, obj: object | List[object]) -> bool:
         '''
@@ -74,10 +93,11 @@ class ConffwkObjectModifier(IObjectModifier[conffwk.dal.DalBase]):
         '''
         if not isinstance(obj, list):
             obj = [obj]
-        
-        if any([o.__module__ == "conffwk.dal" for o in obj]):
-            return True
-        return False
+        try:
+            if any([o.__module__ == "conffwk.dal" for o in obj]):
+                return True
+        finally:
+            return False
 
     def set_attr(self, attr_name: str, attr_value: Any) -> None:
         """
@@ -112,10 +132,15 @@ class ConffwkObjectModifier(IObjectModifier[conffwk.dal.DalBase]):
         :param attr_name: Name of the attribute to retrieve.
         :return: Value of the specified attribute.
         """
+
+        attr = getattr(self._instance, attr_name) if hasattr(self._instance, attr_name) else None 
         
-        attr = getattr(self._instance, attr_name) if hasattr(self._instance, attr_name) else None
-        print(attr[0].__module__)
-        
+        if attr is None:
+            logging.error(
+                f"Attribute '{attr_name}' does not exist in object '{self.name}'."
+            )
+            return None
+         
         # Do some processing to make sure everything stays wrapped up
         if self.check_is_dal(attr):
             return attr
@@ -126,6 +151,11 @@ class ConffwkObjectModifier(IObjectModifier[conffwk.dal.DalBase]):
     
     def __str__(self) -> str:
         return f"{self._instance}"
+    
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, ConffwkObjectModifier):
+            return False
+        return self.name == value.name
 
 # *****************************************************************************
 class ConffwkObjectHandler(
@@ -162,14 +192,20 @@ class ConffwkObjectHandler(
         if self.configuration.configuration is None:
             raise ValueError("Configuration is not loaded.")
 
+        if not object_class:
+            object_class = self.configuration.configuration.classes()
+
         if isinstance(object_class, str):
             object_class = [object_class]
 
-        if object_class:
-            return [ConffwkObjectModifier(d) for c in self.configuration.configuration.get_dals(object_class)for d in c]
+        dals = []
+        for c in object_class:
+            # Remove duplicates
+            for dal in self.configuration.configuration.get_dals(c):
+                if ConffwkObjectModifier(dal) not in dals:
+                    dals.append(ConffwkObjectModifier(dal))
         
-        return [ConffwkObjectModifier(d) for d in self.configuration.configuration.get_all_dals()]
-    
+        return dals 
 
     def delete(self, object: ConffwkObjectModifier) -> None:
         """
@@ -218,3 +254,5 @@ class ConffwkObjectHandler(
                 )
         self.configuration.configuration.update_dal(obj)
         return ConffwkObjectModifier(obj)
+    
+    

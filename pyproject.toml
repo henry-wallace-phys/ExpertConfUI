@@ -6,3 +6,5 @@
     readme = "README.md"
     maintainers = [{name = "Henry Wallace", email= "henry.wallace@rhul.ac.uk"}]
 
+[project.scripts]
+    expert_conf_ui = "expert_config_ui.apps.__expert_conf_app__:main"

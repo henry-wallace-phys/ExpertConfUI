@@ -235,9 +235,6 @@ class IClassObjectLifecycle(_IObjectLifecycle[write_type], Protocol, Generic[wri
         ...
 
 
-"""
-Base class for managing interactions with configurations in a DAQ system.
-"""
 # *****************************************************************************
 class ConfigurationInteractionBase:
     # *****************************************************************************
@@ -278,3 +275,5 @@ class ConfigurationInteractionBase:
         :return: The type of the configuration (data or schema).
         """
         return self._config_type
+
+
